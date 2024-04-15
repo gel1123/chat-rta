@@ -61,8 +61,8 @@ export const handler: DynamoDBStreamHandler = async (event) => {
 
   const response: DynamoDBBatchResponse = {
     batchItemFailures: result
-      .filter((r) => r.$metadata.httpStatusCode !== 200)
-      .map((r) => ({ itemIdentifier: r.$metadata.requestId! })),
+    .filter((r) => r?.$metadata.httpStatusCode !== 200)
+    .map((r) => ({ itemIdentifier: r?.$metadata.requestId! })),
   };
   return response;
 };
