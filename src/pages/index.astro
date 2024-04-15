@@ -1,16 +1,110 @@
 ---
-
+import { MessageEntity } from "@/entities/message";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+const wsApiUrl = `${import.meta.env.WS_API_URL}/${import.meta.env.STAGE}/`;
+const { data: messages } = await MessageEntity.query
+  .orderByCreatedAt({})
+  .go({ pages: "all" });
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<BaseLayout title="rta-chat">
+  <h2>rta-chat</h2>
+  <div id="messages" class="mt-4">
+    {
+      messages.map((message) => (
+        <div class="border-b py-2">
+          <div class="text-xs text-neutral-400">
+            {new Intl.DateTimeFormat("ja-JP", {
+              dateStyle: "short",
+              timeStyle: "short",
+            }).format(new Date(message.createdAt))}
+          </div>
+          <div>{message.body}</div>
+        </div>
+      ))
+    }
+  </div>
+  <form
+    action="/api/message.json"
+    method="POST"
+    data-ws-api-url={wsApiUrl}
+    class="mt-4"
+    id="messageForm"
+  >
+    <input
+      type="text"
+      id="messageBody"
+      name="messageBody"
+      placeholder="メッセージを入力してください"
+      class="w-full"
+    />
+    <div class="flex justify-end mt-2">
+      <button type="submit" class="p-2 bg-blue-500 text-white rounded"
+        >送信</button
+      >
+    </div>
+  </form>
+</BaseLayout>
+
+<script>
+  // WebSocketに接続する
+  const wsApiUrl = document.getElementById("messageForm")!.dataset.wsApiUrl!;
+  const ws = new WebSocket(wsApiUrl);
+
+  // 受信したメッセージを表示する
+  ws.onmessage = (event) => {
+    const messagesArea = document.getElementById("messages")!;
+    const messages = JSON.parse(event.data);
+    for (const message of messages) {
+      const messageElement = document.createElement("div");
+      messageElement.classList.add("border-b", "py-2");
+      messageElement.innerHTML = `
+      <div class="text-xs text-neutral-400">
+        ${new Intl.DateTimeFormat("ja-JP", {
+          dateStyle: "short",
+          timeStyle: "short",
+        }).format(new Date(message.createdAt))}
+      </div>
+      <div>${message.body}</div>
+    `;
+      // 末尾に追加
+      messagesArea.appendChild(messageElement);
+    }
+  };
+
+  // 画面遷移前にWebSocketを閉じる
+  window.addEventListener("beforeunload", () => {
+    ws.close();
+  });
+
+  // WebSocketのエラーを表示する
+  ws.onerror = (event) => {
+    console.error("[onerror] ", event);
+  };
+
+  // メッセージ送信
+  const messageForm = document.getElementById(
+    "messageForm"
+  )! as HTMLFormElement;
+  messageForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const messageBodyInput = document.getElementById(
+      "messageBody"
+    ) as HTMLInputElement;
+    const result = await fetch(messageForm.action, {
+      method: messageForm.method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messageBody: messageBodyInput.value,
+      }),
+    });
+    if (result.ok) {
+      messageBodyInput.value = "";
+    } else {
+      console.error(result.statusText);
+      alert("メッセージの送信に失敗しました");
+    }
+  });
+</script>
